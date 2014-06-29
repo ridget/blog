@@ -19,17 +19,20 @@ $light-gray: #DDD;
 $light-red: #FBE3E4;
 $light-yellow: #FFF6BF;
 $light-green: #E6EFC2;
-$duck-green: #0F593E;
-$duck-yellow: #D9B535;
-$duck-maroon: #592B27;
+
+// New colors
+$off-gray: #AEAEAE;
+$ember-red: #E64C66;
+$navy-blue: #2d3e50;
+$teal:  #1bbc9b;
 
 // Background Color
 $base-background-color: white;
 
 // Font Colors
-$base-font-color: $dark-gray;
-$base-accent-color: $duck-green;
-$secondary-accent-color: $duck-maroon;
+$base-font-color: $navy-blue;
+$base-accent-color: $ember-red;
+$secondary-accent-color: $navy-blue;
 
 // Link Colors
 $base-link-color: $base-accent-color;
