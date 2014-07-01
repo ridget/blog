@@ -124,3 +124,7 @@ I should take a step back here and explain that even though ember knows to go an
 We'll be using this same functionality when we dive further into our transaction app functionality, but for now our list of transactions can remain in our transactions template.
 
 We'll continue on from here in the next blog post, but for now if you'd like to take a look at the source code, you can find it on [github](http://github.com/ridget/transactions)
+
+## A Note on Controllers
+
+We didn't look too closely at ember controllers in this post, this will come up in the next post in the series, but the reason being is that ember has created all the controllers we have needed and so far we haven't had to extend their base functionality in any way. 
