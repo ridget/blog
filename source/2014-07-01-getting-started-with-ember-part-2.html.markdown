@@ -1,6 +1,6 @@
 ---
 title: getting started with ember, part 2
-date: 2014-07-01 19:22 EST
+date: 2014-07-01 19:22 AEST
 tags: ember, js
 ---
 
@@ -24,22 +24,25 @@ Ember CLI gives us a few options to achieve our goals, but in this case what we 
     }); 
 
 Insert the above into `app/helpers/to-currency.js`.
+
 We use `makeBoundHelper` here instead of just helper or `registerBoundHelper` due to ember-cli.
 Ember-cli utilises the `makeBoundHelper` and makes it accessible to the ember container, this is outside the scope of this post, but if you'd like to dig a little into our applications internals within the console, run `Transactions.__container__` within your browser.
+
 The alternative to using this is using `registerBoundHelper` is that we'd need to take the extra step to define the helper function, then register our helper within `app.js`.
 
 If we reload our application now we should see our transaction amount looking all pretty.
 
 ## Controllers
 
-In the previous post, we didn't really touch on controllers, but now that we're displaying some data and are starting to think about how to display and interact with our transactions it's a good time as any to look at working with our controllers.
+In the previous post, we didn't really touch on controllers, however it would be really nice if we started creating some new transactions.
 
 You can think of controllers in ember as the equivalent of view decorators in Rails. 
 They interface between models and templates. 
+
 Note, templates are connected to controllers, not models, the controller will proxy properties from its underlying model through to the template.
 As far as the template is concerned, it doesn't talk to the model.
 
+Controllers in ember come in three tasty flavours, `ObjectController` , `ArrayController` and plain old `Controller`, ember will inspect the model returned from your route to determine which one it should generate, but today it's up to us to determine which one to use when working with our transactions.
 
-Controllers in ember come in two tasty flavours, `ObjectController` and `ArrayController`, ember will inspect the model returned from your route to determine which one it should generate, but today it's up to us to determine which one to use when working with our transactions.
 
 
