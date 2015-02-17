@@ -1,0 +1,144 @@
+<!doctype html>
+<html>
+  <head>
+    <meta charset="utf-8" />
+    <meta http-equiv='X-UA-Compatible' content='IE=edge;chrome=1' />
+    <title>Misadventures in Code - A Treatise on Controllers and Nested Resources</title>
+    <link rel="alternate" type="application/atom+xml" title="Atom Feed" href="/feed.xml" />
+    <link href="../../../stylesheets/all.css" rel="stylesheet" type="text/css" />
+    <link href='http://fonts.googleapis.com/css?family=Nunito:400,700,300' rel='stylesheet' type='text/css'>
+    <link href='http://fonts.googleapis.com/css?family=Varela+Round' rel='stylesheet' type='text/css'>
+  </head>
+  <body>
+    <div class="hero">
+  <div class="hero-inner">
+    <div class="hero-copy">
+      <h1>Misadventures in Code</h1>
+    </div>
+  </div>
+</div>
+
+
+    <div id="main" role="main">
+      <nav>
+  <ul>
+    <li>
+      <a class="blog-title" href="/">Misadventures in Code</a>
+    </li>
+  </ul>
+</nav>
+
+      <h2 id="decouple-yourself-from-only-one-controller-per-resource">Decouple yourself from only one controller per resource</h2>
+
+<p>I have an uneasy relationship with conditionals, but I am particularly wary of anything that is more than an <code>if</code> and <code>else</code>, especially in a controller. </p>
+
+<p>That's not to say I don't believe they have their place, but I'll always look to try and reach for another option, or hoist the conditional up, rather than maintain them in a given method. You see, the issue I have is that complex conditionals, introduce multiple collaborators into a method, reduce the ability to reason about code, and make the system harder to change. </p>
+
+<p><a href="http://blog.steveklabnik.com/posts/2011-12-30-active-record-considered-harmful">Steve Klabnik</a> also gives some insight into the issue:</p>
+
+<blockquote>
+  <p>ActionController relies on instance variables to pass information from the controller to the view. Have you ever seen a 200 line long controller method? I have. Good luck teasing out which instance variables actually get set over the course of all those nested ifs.</p>
+</blockquote>
+
+<p>Let's take a look at the below:</p>
+
+<pre><code># app/controllers/posts_controller.rb
+class PostsController &lt; ApplicationController
+  def index
+    ...
+    case
+    when @user
+      @user.posts
+    when @company
+      @company.posts
+    else
+      Post.all
+    end
+  end
+  ...
+end
+</code></pre>
+
+<p>We can reason that the <code>index</code> method has the role of returning a list of posts, and certainly, for the time being, whilst I feel uneasy about the case statement, at least it's returning a collection of the same kind of object. However, it feels <em>off</em> and is certainly harder to test (yes, I do test my controllers), not to mention, flies in the face of <a href="https://pragprog.com/articles/tell-dont-ask">tell don't ask</a>. </p>
+
+<p>What happens when we start to introduce logic into our views as a result of this case statement though? Where we check for the presence of an instance variable, to determine what and what not to display? If I start reaching for a presenter, this still leaves the underlying problem in our action.</p>
+
+<p>What happens when we introduce authorization and roles into the mix? All of a sudden our method is now involved in determining what to display by virtue of a users role, as well as their scope.</p>
+
+<p>Whilst the tight coupling between our controllers and our views certainly doesn't help, I'm of the strong opinion that by increasing the controllers, we can reduce logic in our views as well as increase code clarity. This is not a new or original concept, <a href="http://www.amazon.com/Rails-AntiPatterns-Refactoring-Addison-Wesley-Professional/dp/0321604814">Rails anti-patterns</a>, describes the same issue </p>
+
+<blockquote>
+  <p>At some point - a point that comes more quickly than you might think - it becomes beneficial not to try to keep the same controller for each difference resource path but to instead create a new controller for each nesting.</p>
+</blockquote>
+
+<p>Whilst our contrived example may not be at that point just yet, it won't be long before it is.</p>
+
+<p>So let's split these controllers up</p>
+
+<pre><code># app/controllers/posts_controller.rb
+class PostsController &lt; ApplicationController
+  def index
+    Post.all
+  end
+end
+
+# app/controllers/users/posts_controller.rb
+class PostsController &lt; ApplicationController
+  def index
+    @user.posts
+  end
+end
+
+# app/controllers/companies/posts_controller.rb
+class PostsController &lt; ApplicationController
+  def index
+    @company.posts
+  end
+end
+</code></pre>
+
+<p>At the cost of more classes, our <em>extremely</em> simple example is now easier to reason about and to change. Shared behaviour can be included via concerns, and views either replaced completely, composed of partials, or we can wrap our collections with presenter objects to properly house the logic that remains in the view layer. We are now further enabled to make changes to our code, without being too concerned about our other actors and we have removed condtionals from our controller actions and pushed the decision making process up to our router. </p>
+
+<h2 id="a-note-on-cancan">A Note on CanCan</h2>
+
+<p><code>load_and_authorize</code> hides the logic that can determine which collection of a given resource to display away. So in our contrived example, we wouldn't necessarily have a case statement, unless we needed a scope on one of our actions. Favouring explicitness over implicitness aside, it obfuscates the conditional, but still has all the downsides. Any changes we make to our controller action, now has to deal with the additional actors, as well as is now harder to reason about when or if a particular parent resource is loaded. This is why im considering a move to <a href="https://github.com/elabs/pundit">pundit</a>, but that's another post.</p>
+
+
+      <footer>
+  <ul class="large-column">
+    <li><h5 class="heading">Recent Articles</h5></li>
+    <li>
+      <ol>
+            <li>
+              <a href="/2015/02/17/a-treatise-on-controllers-and-nested-resources.html">A Treatise on Controllers and Nested Resources</a>
+              <span>Feb 17</span>
+            </li>
+            <li>
+              <a href="/2014/07/01/getting-started-with-ember-part-2.html">getting started with ember, part 2</a>
+              <span>Jul  1</span>
+            </li>
+            <li>
+              <a href="/2014/06/29/getting-started-with-ember-js.html">Getting Started With Ember.js</a>
+              <span>Jun 29</span>
+            </li>
+      </ol>
+    </li>
+  </ul>
+
+  <ul class="small-column">
+    <li><h5 class="heading">Tags</h5></li>
+    <li>
+      <ol>
+            <li><a href="/tags/js.html">js (2)</a></li>
+            <li><a href="/tags/ember-js.html">ember.js (1)</a></li>
+            <li><a href="/tags/ember.html">ember (1)</a></li>
+            <li><a href="/tags/rails.html">rails (1)</a></li>
+            <li><a href="/tags/controllers.html">controllers (1)</a></li>
+      </ol>
+    </li>
+    <ul>
+</footer>
+
+    </div>
+  </body>
+</html>

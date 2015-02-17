@@ -1,0 +1,383 @@
+<?xml version="1.0" encoding="UTF-8"?>
+<feed xmlns="http://www.w3.org/2005/Atom">
+  <title>Blog Name</title>
+  <subtitle>Blog subtitle</subtitle>
+  <id>http://blog.url.com/</id>
+  <link href="http://blog.url.com/"/>
+  <link href="http://blog.url.com/feed.xml" rel="self"/>
+  <updated>2015-02-17T19:51:00+10:00</updated>
+  <author>
+    <name>Blog Author</name>
+  </author>
+  <entry>
+    <title>A Treatise on Controllers and Nested Resources</title>
+    <link rel="alternate" href="http://blog.url.com/2015/02/17/a-treatise-on-controllers-and-nested-resources.html"/>
+    <id>http://blog.url.com/2015/02/17/a-treatise-on-controllers-and-nested-resources.html</id>
+    <published>2015-02-17T19:51:00+10:00</published>
+    <updated>2015-02-17T22:00:55+10:00</updated>
+    <author>
+      <name>Article Author</name>
+    </author>
+    <content type="html">&lt;h2 id="decouple-yourself-from-only-one-controller-per-resource"&gt;Decouple yourself from only one controller per resource&lt;/h2&gt;
+
+&lt;p&gt;I have an uneasy relationship with conditionals, but I am particularly wary of anything that is more than an &lt;code&gt;if&lt;/code&gt; and &lt;code&gt;else&lt;/code&gt;, especially in a controller. &lt;/p&gt;
+
+&lt;p&gt;That's not to say I don't believe they have their place, but I'll always look to try and reach for another option, or hoist the conditional up, rather than maintain them in a given method. You see, the issue I have is that complex conditionals, introduce multiple collaborators into a method, reduce the ability to reason about code, and make the system harder to change. &lt;/p&gt;
+
+&lt;p&gt;&lt;a href="http://blog.steveklabnik.com/posts/2011-12-30-active-record-considered-harmful"&gt;Steve Klabnik&lt;/a&gt; also gives some insight into the issue:&lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;ActionController relies on instance variables to pass information from the controller to the view. Have you ever seen a 200 line long controller method? I have. Good luck teasing out which instance variables actually get set over the course of all those nested ifs.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Let's take a look at the below:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# app/controllers/posts_controller.rb
+class PostsController &amp;lt; ApplicationController
+  def index
+    ...
+    case
+    when @user
+      @user.posts
+    when @company
+      @company.posts
+    else
+      Post.all
+    end
+  end
+  ...
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We can reason that the &lt;code&gt;index&lt;/code&gt; method has the role of returning a list of posts, and certainly, for the time being, whilst I feel uneasy about the case statement, at least it's returning a collection of the same kind of object. However, it feels &lt;em&gt;off&lt;/em&gt; and is certainly harder to test (yes, I do test my controllers), not to mention, flies in the face of &lt;a href="https://pragprog.com/articles/tell-dont-ask"&gt;tell don't ask&lt;/a&gt;. &lt;/p&gt;
+
+&lt;p&gt;What happens when we start to introduce logic into our views as a result of this case statement though? Where we check for the presence of an instance variable, to determine what and what not to display? If I start reaching for a presenter, this still leaves the underlying problem in our action.&lt;/p&gt;
+
+&lt;p&gt;What happens when we introduce authorization and roles into the mix? All of a sudden our method is now involved in determining what to display by virtue of a users role, as well as their scope.&lt;/p&gt;
+
+&lt;p&gt;Whilst the tight coupling between our controllers and our views certainly doesn't help, I'm of the strong opinion that by increasing the controllers, we can reduce logic in our views as well as increase code clarity. This is not a new or original concept, &lt;a href="http://www.amazon.com/Rails-AntiPatterns-Refactoring-Addison-Wesley-Professional/dp/0321604814"&gt;Rails anti-patterns&lt;/a&gt;, describes the same issue &lt;/p&gt;
+
+&lt;blockquote&gt;
+  &lt;p&gt;At some point - a point that comes more quickly than you might think - it becomes beneficial not to try to keep the same controller for each difference resource path but to instead create a new controller for each nesting.&lt;/p&gt;
+&lt;/blockquote&gt;
+
+&lt;p&gt;Whilst our contrived example may not be at that point just yet, it won't be long before it is.&lt;/p&gt;
+
+&lt;p&gt;So let's split these controllers up&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;# app/controllers/posts_controller.rb
+class PostsController &amp;lt; ApplicationController
+  def index
+    Post.all
+  end
+end
+
+# app/controllers/users/posts_controller.rb
+class PostsController &amp;lt; ApplicationController
+  def index
+    @user.posts
+  end
+end
+
+# app/controllers/companies/posts_controller.rb
+class PostsController &amp;lt; ApplicationController
+  def index
+    @company.posts
+  end
+end
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;At the cost of more classes, our &lt;em&gt;extremely&lt;/em&gt; simple example is now easier to reason about and to change. Shared behaviour can be included via concerns, and views either replaced completely, composed of partials, or we can wrap our collections with presenter objects to properly house the logic that remains in the view layer. We are now further enabled to make changes to our code, without being too concerned about our other actors and we have removed condtionals from our controller actions and pushed the decision making process up to our router. &lt;/p&gt;
+
+&lt;h2 id="a-note-on-cancan"&gt;A Note on CanCan&lt;/h2&gt;
+
+&lt;p&gt;&lt;code&gt;load_and_authorize&lt;/code&gt; hides the logic that can determine which collection of a given resource to display away. So in our contrived example, we wouldn't necessarily have a case statement, unless we needed a scope on one of our actions. Favouring explicitness over implicitness aside, it obfuscates the conditional, but still has all the downsides. Any changes we make to our controller action, now has to deal with the additional actors, as well as is now harder to reason about when or if a particular parent resource is loaded. This is why im considering a move to &lt;a href="https://github.com/elabs/pundit"&gt;pundit&lt;/a&gt;, but that's another post.&lt;/p&gt;
+
+</content>
+  </entry>
+  <entry>
+    <title>getting started with ember, part 2</title>
+    <link rel="alternate" href="http://blog.url.com/2014/07/01/getting-started-with-ember-part-2.html"/>
+    <id>http://blog.url.com/2014/07/01/getting-started-with-ember-part-2.html</id>
+    <published>2014-07-01T19:22:00+10:00</published>
+    <updated>2015-02-17T22:00:55+10:00</updated>
+    <author>
+      <name>Article Author</name>
+    </author>
+    <content type="html">&lt;h2 id="hamburger-i-mean-handlebar-helpers"&gt;Hamburger, I mean Handlebar Helpers&lt;/h2&gt;
+
+&lt;p&gt;Before we get started I'd like to give a huge thank you to &lt;a href="https://twitter.com/geoffreyd"&gt;@geoffreyd&lt;/a&gt;, he pretty much fixed all my code and set me straight on some really good best practices, not to mention spent an enormous amount of time putting up with my help vampirism. Additionally all the code for this post can be found on &lt;a href="https://github.com/ridget/transactions/tree/section_2"&gt;github&lt;/a&gt;&lt;/p&gt;
+
+&lt;p&gt;So far we've displayed our transactions on the page, but the amount property in our transaction model is just using a number to represent its value and we want to format it.
+So we're going to utilise a helper method so it's available across our views.&lt;/p&gt;
+
+&lt;p&gt;Helpers in ember are not dissimilar to helpers in Rails, particularly in this use case where we're planning on formatting an existing value.
+ The main difference is by utilising ember, we can ensure our helper method updates as the values it depends upon changes.&lt;/p&gt;
+
+&lt;p&gt;Today we're going to register a new helper and convert our transaction amount to something resembling currency. &lt;/p&gt;
+
+&lt;p&gt;Ember CLI gives us a few options to achieve our goals, but in this case what we need is the following:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import Ember from "ember";
+export default Ember.Handlebars.makeBoundHelper(function(amount, options){
+  var amount = (amount/100).toFixed(2);
+  var currencyAmount = "$"+ amount + "";
+  return currencyAmount;
+}); 
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Insert the above into &lt;code&gt;app/helpers/to-currency.js&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;We use &lt;code&gt;makeBoundHelper&lt;/code&gt; here instead of just helper or &lt;code&gt;registerBoundHelper&lt;/code&gt; due to ember-cli.
+Ember-cli utilises the &lt;code&gt;makeBoundHelper&lt;/code&gt; and makes it accessible to the ember container, this is outside the scope of this post, but if you'd like to dig a little into our applications internals within the console, run &lt;code&gt;Transactions.__container__&lt;/code&gt; within your browser.&lt;/p&gt;
+
+&lt;p&gt;The alternative to using this is using &lt;code&gt;registerBoundHelper&lt;/code&gt; is that we'd need to take the extra step to define the helper function, then register our helper within &lt;code&gt;app.js&lt;/code&gt;.&lt;/p&gt;
+
+&lt;p&gt;If we reload our application now we should see our transaction amount looking all pretty.&lt;/p&gt;
+
+&lt;h2 id="routes"&gt;Routes&lt;/h2&gt;
+
+&lt;p&gt;This is where most guides would start discussing Ember controllers and creating new transactions from within. We're not going down that path.&lt;/p&gt;
+
+&lt;p&gt;A Route in Ember represents state, which is represented with a url. As we're going to be manipulating data, and thus the state of the current page, we're going to store our actions relating to creating a new transaction in a route. To start though we need to specify a new route for the user to hit.&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Router.map(function() {
+  this.resource('transactions', { path: '/' }, function(){
+    this.route('new'); 
+  });
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Here we have made &lt;code&gt;/transactions/new&lt;/code&gt; available. This, by convention, will ensure Ember generates a &lt;code&gt;TransactionsNewRoute&lt;/code&gt;, but we're going to create one of our own and start handling user input. To take user input we need a form, so let's create a new template for our transactions form:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;form {{action "createTransaction" on="submit"}}&amp;gt;
+  &amp;lt;label for="transaction-name"&amp;gt;Name:&amp;lt;/label&amp;gt;
+  {{input type="text" value=name id="name"}}
+
+  &amp;lt;label for="transaction-amount"&amp;gt;Transaction Amount:&amp;lt;/label&amp;gt;
+  {{input value=dollarValue id="comp-currency"}}
+
+  &amp;lt;button type="submit"&amp;gt;Save Transaction&amp;lt;/button&amp;gt;
+&amp;lt;/form&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;In Ember, if we don't assign a string to a value, that then becomes available to the context object within the template, bear this in mind when we start to look at our Route object later on.&lt;/p&gt;
+
+&lt;p&gt;So now that we have a form, let's make our form save our transactions with a Route:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import Ember from 'ember';
+
+export default Ember.Route.extend({
+    model: function(){
+        return this.store.createRecord("transaction", { amount: 0, name: 'New Transaction' });
+    },
+
+    actions: {
+      createTransaction: function(){
+        var self = this;
+        var transaction = this.controller.get('model');
+        // TODO: set date format the way you want it.
+        transaction.set('occurredOn', new Date);
+        transaction.save().then(function(){
+          self.transitionTo('transactions.index');
+        });
+      }
+    }
+
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Ok, there's a lot going on here, so lets break it down.&lt;/p&gt;
+
+&lt;p&gt;First up, we instantiate a brand new instance of transaction within the route, place it inside the model hook, and set it with some defaults using the &lt;code&gt;createRecord&lt;/code&gt; method. 
+This then sends the model to the controller, which if you remember from our first post talks exclusively to the template. &lt;/p&gt;
+
+&lt;p&gt;Next is our actions, specifically our &lt;code&gt;createTransaction&lt;/code&gt; action. We can define actions within a Route object, a Controller or a View. To make understanding when to use which earlier, if you're dealing with data changes, use the Route, if you're dealing with changes within the object or collection, use a Controller, if you're dealing with interactions between views, use the View.&lt;/p&gt;
+
+&lt;p&gt;Within our &lt;code&gt;createTransaction&lt;/code&gt; action, we retrieve our controller model, which seems a bit odd as we've defined it above. However we need to explicitly retrieve the model object as it stands from the controller, which as we reminded ourselves above, talks to the template. So here, we get the object as it stands in our form. We then save our new transaction, and make use of promises to 
+return to the transactions index once complete.&lt;/p&gt;
+
+&lt;p&gt;There's one piece to puzzle missing, how does our &lt;code&gt;dollarValue&lt;/code&gt; from our template, map to the &lt;code&gt;amount&lt;/code&gt; on our model. The answer is in fact, in our model.&lt;/p&gt;
+
+&lt;h2 id="computed-properties"&gt;Computed Properties&lt;/h2&gt;
+
+&lt;p&gt;One of Ember's most powerful features is computed properties.&lt;/p&gt;
+
+&lt;p&gt;It allows you to declare functions as properties on an object. When we create a computed property we defined the properties of the object it depends on at the end of the function, we can also
+use this to build a computed property that depends on another computed property. Awesome!&lt;/p&gt;
+
+&lt;p&gt;In our case below we have a computed property of &lt;code&gt;dollarValue&lt;/code&gt; to map dollar values to cents in our database. When we use this property in our form, it sets the amount to the unformatted amount entered in. So when it comes time to saving the form, it automatically does all the adjustments for us. &lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var Transaction = DS.Model.extend({
+    name: DS.attr('string'),
+    amount: DS.attr('number'),
+    occurredOn: DS.attr('date'),
+    dollarValue: function(key, value, previousValue) {
+        var currency;
+        if (value !== undefined) {  // set was called
+            var amount = Math.round(value * 100);
+            currency = accounting.unformat(amount);
+            this.set("amount", currency);
+        } else {
+          currency = this.get('amount');
+        }
+
+        // Get the value and return for either set or get.
+        amount = (currency/100).toFixed(2);
+        return accounting.formatMoney(amount, "");
+    }.property('amount')
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;h2 id="one-more-thing"&gt;One more thing&lt;/h2&gt;
+
+&lt;p&gt;There's just one thing we need to do, and that's instantiate an Ember Object Controller so our form gets all the attributes proxied through. So let's create a new &lt;code&gt;TransactionsNew&lt;/code&gt; controller:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import Ember from "ember";
+
+// Make TransactionsNewController an ObjectController,·
+// so that it will proxy properties. !important
+export default Ember.ObjectController.extend({
+
+});
+&lt;/code&gt;&lt;/pre&gt;
+</content>
+  </entry>
+  <entry>
+    <title>Getting Started With Ember.js</title>
+    <link rel="alternate" href="http://blog.url.com/2014/06/29/getting-started-with-ember-js.html"/>
+    <id>http://blog.url.com/2014/06/29/getting-started-with-ember-js.html</id>
+    <published>2014-06-29T16:40:00+10:00</published>
+    <updated>2015-02-17T22:00:55+10:00</updated>
+    <author>
+      <name>Article Author</name>
+    </author>
+    <content type="html">&lt;h2 id="ember-cli"&gt;Ember CLI&lt;/h2&gt;
+&lt;p&gt;Ember is an opinionated JavaScript framework, it subscribes to the Rails philosophy of convention over configuration and makes it very easy to start building well structured,
+rich, client side applications.&lt;/p&gt;
+
+&lt;p&gt;Ember cli is a tool used to help build Ember applications, and similarly has a strong opinion on how you should structure and work with your code. Today's blog post is going to be using both of these tools.&lt;/p&gt;
+
+&lt;p&gt;As a Rails developer, the urge to utilise the &lt;code&gt;ember-rails&lt;/code&gt; gem is pretty high, however I'm of the opinion that you should keep your Ember application separate from your Rails app and Ember cli provides too good a tool to ignore.&lt;/p&gt;
+
+&lt;p&gt;Ember cli is a command line tool thats based on the Ember App Kit project, it is meant to function as a replacement to Ember App Kit. It gives us a great project structure out of the box (not unlike when you generate a new Rails project with &lt;code&gt;rails new&lt;/code&gt;), and a few handy generators.&lt;/p&gt;
+
+&lt;p&gt;To get started, please follow the instructions at &lt;a href="http://iamstef.net/ember-cli/"&gt;ember cli&lt;/a&gt;, and come back when you're ready to proceed.&lt;/p&gt;
+
+&lt;p&gt;We're going to be making a simple budgeting application, we'll take incoming transactions, assign them a name, a date, and a price, and assign them to a category.&lt;/p&gt;
+
+&lt;p&gt;To start simply run &lt;code&gt;ember new transactions&lt;/code&gt; this will create a new &lt;code&gt;transactions&lt;/code&gt; folder and generate the application structure. Already we can run &lt;code&gt;ember server&lt;/code&gt; from within our application and navigate to our ember app. &lt;/p&gt;
+
+&lt;p&gt;To help us identify what's going on in our application, we're going to navigate to our &lt;code&gt;app.js&lt;/code&gt; file and add the following:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;var App = Ember.Application.extend({
+  ...
+  LOG_TRANSITIONS: true,
+  LOG_TRANSITIONS_INTERNAL: true
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This will assist us in getting a better understanding of what's going on under the hood.&lt;/p&gt;
+
+&lt;h2 id="the-router"&gt;The Router&lt;/h2&gt;
+&lt;p&gt;Next we're going to start setting up some of our routes within &lt;code&gt;app/router.js&lt;/code&gt;. The Router in Ember, as opposed to individual route objects, is much like a router in Rails. The main point of difference between a router in Rails and a router in Ember is that a route in Ember represents any one of the possible states of your application, which in turn provides a url.&lt;/p&gt;
+
+&lt;p&gt;To start we're going to add our first real route, which will display an index of transactions:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;Router.map(function() {
+  this.resource('transactions', { path: '/' });
+});
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Note the addition of the &lt;code&gt;path&lt;/code&gt; option, this tells Ember to render the &lt;code&gt;transactions&lt;/code&gt; template when visiting the root path of your application.&lt;/p&gt;
+
+&lt;p&gt;When you give it a route like the above, it tells Ember that it needs an &lt;code&gt;IndexRoute&lt;/code&gt;,
+a &lt;code&gt;TransactionsRoute&lt;/code&gt; and a &lt;code&gt;TransactionsIndexRoute&lt;/code&gt; as well as controllers and templates following the same naming convention eg &lt;code&gt;TransactionsIndexController&lt;/code&gt; and  &lt;code&gt;transactions/index&lt;/code&gt;. &lt;/p&gt;
+
+&lt;p&gt;What Ember will do for you is generate those required routes, controllers and templates for you, so you can continue to develop your application until you need to override the default behaviour within those files.&lt;/p&gt;
+
+&lt;h2 id="the-model"&gt;The Model&lt;/h2&gt;
+
+&lt;p&gt;All this routing needs a model to back it. Once again there's some similarities with Rails here so go ahead and create a model in &lt;code&gt;app/models/transaction.js&lt;/code&gt;:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import DS from 'ember-data';
+
+var Transaction = DS.Model.extend({
+  name: DS.attr('string'),
+  amount: DS.attr('number'),
+  occurredOn: DS.attr('date')
+});
+
+Transaction.reopenClass({
+  FIXTURES: [
+  {
+    id: 1,
+      name: "GYG Burritos",
+      amount: "1200",
+      occurredOn: "12/04/2014" 
+  }
+]});
+
+export default Transaction;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;We've imported Ember Data, using the import statement at the top of the page. Ember cli provides us the mechanism for this as it uses ES6 modules.
+How this happens is a bit beyond the scope of this post, however ES6 modules are not fully supported yet, so Ember uses some crafty magic to make these available to use across the board.&lt;/p&gt;
+
+&lt;p&gt;In addition we have also defined our model, given it some attributes with different types and created an initial fixture for us to work with.
+To utilise fixtures, open up &lt;code&gt;app/adapters/application.js&lt;/code&gt; and add the following:&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import DS from 'ember-data';
+export default DS.FixtureAdapter.extend();
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;This says to Ember to utilise fixtures as our data source.&lt;/p&gt;
+
+&lt;h2 id="a-route"&gt;A Route&lt;/h2&gt;
+
+&lt;p&gt;Now we want to make sure when we visit the index of our application we see our list of transactions.
+To accomplish this, we need to use a route. A route helps define what model should be available to your template when we view our transactions, this is achieved with the &lt;code&gt;model&lt;/code&gt; hook in the route.&lt;/p&gt;
+
+&lt;p&gt;For our first route, we're going to create the &lt;code&gt;TransactionsRoute&lt;/code&gt; in &lt;code&gt;app/routes/transactions.js&lt;/code&gt;&lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;import Ember from 'ember';
+var TransactionsRoute = Ember.Route.extend({
+  model: function(){
+    return this.store.find('transaction');
+  }
+});
+
+export default TransactionsRoute;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;Note the import of Ember, this is another Ember cli requirement that whenever we need ember-data or Ember in our files, we import either of those depending on our needs.&lt;/p&gt;
+
+&lt;p&gt;We also return our available transactions in our model hook&lt;/p&gt;
+
+&lt;h2 id="a-template"&gt;A template&lt;/h2&gt;
+
+&lt;p&gt;We've setup our routes, our model and some initial data, now we need to display our transactions. So we will setup a &lt;code&gt;transactions&lt;/code&gt; template in &lt;code&gt;app/templates/transactions.hbs&lt;/code&gt; &lt;/p&gt;
+
+&lt;pre&gt;&lt;code&gt;&amp;lt;ul&amp;gt;
+  {{#each}}
+    &amp;lt;li&amp;gt;{{name}} {{amount}} {{occurredOn}}&amp;lt;/li&amp;gt;
+  {{/each}}
+&amp;lt;/ul&amp;gt;
+&lt;/code&gt;&lt;/pre&gt;
+
+&lt;p&gt;The &lt;code&gt;each&lt;/code&gt; here loops through an array of records, and although we only have one transaction to return, this will ensure our data is displayed correctly and will support additional records when we progress to adding them.&lt;/p&gt;
+
+&lt;p&gt;Now if we run &lt;code&gt;ember server&lt;/code&gt; from our terminal we should see our fixture data displayed for us. &lt;/p&gt;
+
+&lt;p&gt;I should take a step back here and explain that even though ember knows to go and find the transactions template, it's the &lt;code&gt;{{outlet}}&lt;/code&gt; statement in &lt;code&gt;app/templates/application.hbs&lt;/code&gt; which enables the template to bubble up to be displayed.&lt;/p&gt;
+
+&lt;p&gt;We'll be utilizing this concept further when we add additional features, but for now our list of transactions can remain in our transactions template.&lt;/p&gt;
+
+&lt;p&gt;We'll continue on from here in the next blog post, but for now if you'd like to take a look at the source code, you can find it on &lt;a href="http://github.com/ridget/transactions"&gt;github&lt;/a&gt;&lt;/p&gt;
+
+&lt;h2 id="a-note-on-controllers"&gt;A Note on Controllers&lt;/h2&gt;
+
+&lt;p&gt;We didn't look too closely at Ember Controllers in this post, this will come up in the next post in the series, however ember has created all the controllers we have needed and so far we haven't had to extend their base functionality from what we already have. &lt;/p&gt;
+</content>
+  </entry>
+</feed>
